@@ -1,42 +1,118 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 import MDEditor from '@uiw/react-md-editor';
+import { Loader2Icon, Bot } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+import { generateContentAi } from '@/actions/googleAi';
+import { LoadingName, LoadingState } from '@/types/types';
 
 export default function BlogAutomation() {
   const [category, setCategory] = useState('');
   const [suggestedCategories, setSuggestedCategories] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [suggestedTitles, setSuggestedTitles] = useState<string[]>([]);
-  const [content, setContent] = useState('');
+  const [suggestedContent, setSuggestedContent] = useState('');
   const [image, setImage] = useState('');
+  const [loading, setLoading] = useState<LoadingState>({
+    name: '',
+    status: false,
+  });
 
-  const generateCategories = () => {
-    setSuggestedCategories(['Tech', 'Health', 'Business', 'Science']);
+  const { CATEGORIES, TITLES, CONTENT } = LoadingName;
+
+  const generateCategories = async () => {
+    // setSuggestedCategories(['Tech', 'Health', 'Business', 'Science']);
+    setLoading({ name: CATEGORIES, status: true });
+
+    try {
+      const { categories } = await generateContentAi(`
+        Suggest 20 of the most popular and relevant categories fpr a blogging application.
+        Please return the response in JSON format like this: 
+        {
+          "categories": ["Tech", "Health", "Business", "Science"]
+        }
+      `);
+      setSuggestedCategories(categories);
+      console.log('categories:', categories);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading({ name: CATEGORIES, status: false });
+    }
   };
 
-  const generateTitles = () => {
-    setSuggestedTitles([
-      'The Future of Tech',
-      'How to Stay Healthy',
-      'Starting a Business',
-      'The Science of Sleep',
-    ]);
+  const generateTitles = async () => {
+    if (!category) {
+      toast.error('Please write or select a category first');
+      return;
+    }
+
+    setLoading({ name: TITLES, status: true });
+
+    try {
+      const { titles } = await generateContentAi(`
+        Suggest 3 SEO=optimized blog post titles for the category "${category}".
+        The titles should be catchy, relevant and designed to attract traffic.
+        Please return the response in JSON format like this:
+        {
+          "titles": ['The Future of Tech', 'How to Stay Healthy in 2025', 'Starting a Business in 2025']
+        }
+      `);
+      setSuggestedTitles(titles);
+      console.log('titles:', titles);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading({ name: TITLES, status: false });
+    }
   };
 
-  const generateContent = () => {
-    setContent(
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-    );
+  const generateContent = async () => {
+    if (!title) {
+      toast.error('Please write or select a title first');
+      return;
+    }
+
+    setLoading({ name: CONTENT, status: true });
+
+    try {
+      const { content } = await generateContentAi(`
+        Generate a SEO-optimized blog post on the topic: ${title}.
+        The post should be written in a clear, easy-to-understand language suitable for broad audience. Ensure the content is human-friendly and engaging while incorporating relevant SEO keywords.
+        Please return the response in JSON format as follows:
+        {
+          "content": "Your blog content here."
+        }
+          Content must be written in semantic HTML format including multiple headings, bullet points, paragraphs, etc but excluding <DOCTYPE> <html> <body> <head> <meta> sections and use <code> blocks as needed only. Include summary section at the end of the content, but do not include keywords: section at the end.
+      `);
+      setSuggestedContent(content);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading({ name: CONTENT, status: false });
+    }
   };
 
   const generateImage = () => {
-    setImage('https://via.placeholder.com/600');
+    setImage('https://placehold.co/600');
+  };
+
+  const handleSubmit = () => {
+    console.log({
+      category,
+      title,
+      suggestedContent,
+      image,
+    });
   };
 
   return (
@@ -62,7 +138,13 @@ export default function BlogAutomation() {
               <Button
                 onClick={generateCategories}
                 variant='outline'
-                className='flex-1'>
+                className='flex-1'
+                disabled={loading.name === CATEGORIES && loading.status}>
+                {loading.name === CATEGORIES && loading.status ? (
+                  <Loader2Icon className='animate-spin' />
+                ) : (
+                  <Bot />
+                )}
                 Get Categories Suggestions from AI
               </Button>
             </div>
@@ -96,7 +178,13 @@ export default function BlogAutomation() {
               <Button
                 onClick={generateTitles}
                 variant='outline'
-                className='flex-1'>
+                className='flex-1'
+                disabled={loading.name === TITLES && loading.status}>
+                {loading.name === TITLES && loading.status ? (
+                  <Loader2Icon className='animate-spin' />
+                ) : (
+                  <Bot />
+                )}
                 Get Titles Suggestions from AI
               </Button>
             </div>
@@ -128,19 +216,56 @@ export default function BlogAutomation() {
 
             <div className='flex gap-2'>
               <Button
-                className='w-full'
+                onClick={generateContent}
                 variant='outline'
-                onClick={generateContent}>
+                className='w-full'
+                disabled={loading.name === CONTENT && loading.status}>
+                {loading.name === CONTENT && loading.status ? (
+                  <Loader2Icon className='animate-spin' />
+                ) : (
+                  <Bot />
+                )}
                 Generate content with AI
               </Button>
             </div>
 
             <div className='pt-5'>
               <MDEditor
-                value={content}
-                onChange={(value) => setContent(value ?? '')}
+                value={suggestedContent}
+                onChange={(value) => setSuggestedContent(value ?? '')}
               />
             </div>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='image'>Featured Image</Label>
+
+            <div className='flex gap-2 items-center'>
+              <Button
+                className='flex-1'
+                onClick={generateImage}
+                variant='outline'>
+                Generate Image
+              </Button>
+
+              {image && (
+                <div className='flex-1'>
+                  <Image
+                    width={600}
+                    height={600}
+                    src={image}
+                    alt='Featured Image'
+                    className='mt-2 max-w-full h-auto rounded-lg'
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className='space-y-2'>
+            <Button className='w-full' onClick={handleSubmit}>
+              Submit Blog Post
+            </Button>
           </div>
         </CardContent>
       </Card>
